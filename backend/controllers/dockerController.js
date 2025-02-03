@@ -1,5 +1,4 @@
 import Docker from 'dockerode';
-import WebSocket from 'ws';
 
 const docker = new Docker();
 
@@ -60,6 +59,7 @@ export async function createContainer(req, res){
       Tty: true, // Enables TTY (like `-t` in CLI)
       AttachStdin: true, // Allow input to be attached (`-i`)
       OpenStdin: true,
+      WorkingDir:'/app',
       HostConfig: {
         PortBindings: portBindings, // Map container ports to host ports
       },
@@ -116,19 +116,20 @@ export const writeFile = async (req, res) => {
 // List files in a directory
 export const listFiles = async (req, res) => {
   const { containerId, dirPath } = req.body;
-
   try {
     const container = docker.getContainer(containerId);
     const exec = await container.exec({
-      Cmd: ['ls', '-l', dirPath],
+      Cmd: ['ls', dirPath],
       AttachStdout: true,
       AttachStderr: true,
     });
 
-    const stream = await exec.start();
+    const stream = await exec.start({ hijack: true, stdin: true });
     let output = '';
+    
     stream.on('data', (chunk) => (output += chunk.toString()));
-    stream.on('end', () => res.json({ files: output }));
+    stream.on('end', () => {
+      res.json({ files: output })});
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -138,28 +139,60 @@ export const listFiles = async (req, res) => {
 export const attachTerminal = (ws, req) => {
   const { containerId } = req.params;
 
-  const container = docker.getContainer(containerId);
-  const exec = container.exec({
-    Cmd: ['/bin/sh'],
-    AttachStdin: true,
-    AttachStdout: true,
-    AttachStderr: true,
-    Tty: true,
-  });
+  // Check if containerId is valid
+  if (!containerId) {
+    ws.send(JSON.stringify({ error: 'No containerId provided' }));
+    return;
+  }
 
-  exec.start((err, stream) => {
-    if (err) {
-      ws.send(JSON.stringify({ error: err.message }));
+  // Get the Docker container instance
+  const container = docker.getContainer(containerId);
+
+  // Check if container exists
+  container.inspect(async (err, data) => {
+    if (err || !data) {
+      ws.send(JSON.stringify({ error: `No such container: ${containerId}` }));
       return;
     }
 
-    // Send container output to the client
-    stream.on('data', (chunk) => ws.send(chunk.toString()));
+    // Create an exec instance to start a shell in the container
+    const exec = await container.exec({
+      Cmd: ['/bin/bash'],
+      AttachStdin: true,
+      AttachStdout: true,
+      AttachStderr: true,
+      Tty: true,
+      WorkingDir:'/app',
+    });
 
-    // Send client input to the container
-    ws.on('message', (message) => stream.write(message));
+     exec.start({ detach:false,hijack:true,stdin: true, tty: true },(err, stream) => {
+      if (err) {
+        ws.send(JSON.stringify({ error: err.message }));
+        return;
+      }
+      
+      // Send output from container to client
+      stream.on('data', (chunk) => {
+        console.log(chunk.toString());
+        ws.send(chunk.toString());
+      });
+      stream.on('error',(err)=>console.error(err));
+      // Send input from client to container
+      ws.on('message',  (message) => {
+        console.log("Received from client:", message);
+         stream.write(message+'\r');
+      });
 
-    // Handle client disconnect
-    ws.on('close', () => stream.end());
+      // Handle WebSocket close event
+      ws.on('close', () => {
+        console.log("Client disconnected.");
+        stream.end(); // Close the exec stream properly when WebSocket closes
+      });
+
+      // Handle errors in WebSocket connection
+      ws.on('error', (error) => {
+        console.error("WebSocket Error:", error);
+      });
+    });
   });
 };

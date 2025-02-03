@@ -4,7 +4,6 @@ import User from '../models/User.js';
 const authMiddleware = async (req, res, next) => {
   // Get token from header
   const token = req.header('Authorization')?.replace('Bearer ', '');
-
   if (!token) {
     return res.status(401).json({ error: 'No token, authorization denied' });
   }

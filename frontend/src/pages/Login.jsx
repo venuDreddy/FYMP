@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 
-const Login = () => {
+const Login = ({API_URL}) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -10,23 +10,29 @@ const Login = () => {
   const token = localStorage.getItem('token');
   if(token){
     const checkLogin = async(token)=>{
-        const response = await axios.get('http://localhost:5000/api/auth/user', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      console.log(response.data.user);
-      if(response.data.user){
-        navigate('/dashboard');
-      }
+      try {
+        const response = await axios.get(API_URL+'/api/auth/user', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        console.log(response.data.user);
+        if(response.data.user){
+          navigate('/dashboard');
+        }
+      } catch (err) {
+        console.log(err);
+        setError(err.message);
     }
-    checkLogin(token);
+    }
+    //checkLogin(token);
   }
   const handleLogin = async (e) => {
     e.preventDefault();
     try {
-      const response = await axios.post('http://localhost:5000/api/auth/login', {
+      const response = await axios.post(API_URL+'/api/auth/login', {
         username,
         password,
       });
+      console.log(response.data);
       localStorage.setItem('token', response.data.token); // Store token in localStorage
       navigate('/dashboard'); // Redirect to dashboard after login
     } catch (err) {

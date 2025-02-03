@@ -8,16 +8,17 @@ import ResourceConsumer from './pages/ResourceConsumer';
 import ProtectedRoute from './components/ProtectedRoute';
 
 const App = () => {
+  const API_URL= "http://192.168.0.105:5000";
   return (
     <Router>
       <Routes>
-        <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
+        <Route path="/login" element={<Login API_URL={API_URL}/>} />
+        <Route path="/register" element={<Register API_URL={API_URL}/>} />
         <Route
           path="/dashboard"
           element={
             <ProtectedRoute>
-              <Dashboard />
+              <Dashboard API_URL={API_URL}/>
             </ProtectedRoute>
           }
         />
@@ -25,7 +26,7 @@ const App = () => {
           path="/resource-provider"
           element={
             <ProtectedRoute>
-              <ResourceProvider />
+              <ResourceProvider API_URL={API_URL}/>
             </ProtectedRoute>
           }
         />
@@ -33,11 +34,11 @@ const App = () => {
           path="/resource-consumer"
           element={
             <ProtectedRoute>
-              <ResourceConsumer />
+              <ResourceConsumer API_URL={API_URL}/>
             </ProtectedRoute>
           }
         />
-        <Route path="/" element={<Login />} />
+        <Route path="/" element={<Login API_URL={API_URL}/>} />
       </Routes>
     </Router>
   );

@@ -15,7 +15,12 @@ expressWs(app);
 connectDB();
 
 // Middleware
-app.use(cors());
+app.use(
+  cors({
+    methods: ['GET', 'POST', 'PUT', 'DELETE'], // Allow specific methods if needed
+    credentials: true, // Allow sending cookies with requests
+  })
+);
 app.use(json());
 app.use(
   session({
@@ -29,5 +34,6 @@ app.use(
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/docker', dockerRoutes);
+// app.use('ws:')
 
 export default app;

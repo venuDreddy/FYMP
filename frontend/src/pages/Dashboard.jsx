@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 
-const Dashboard = () => {
+const Dashboard = ({API_URL}) => {
   const [user, setUser] = useState(null);
   const [error, setError] = useState('');
   const navigate = useNavigate();
@@ -16,7 +16,7 @@ const Dashboard = () => {
       }
 
       try {
-        const response = await axios.get('http://localhost:5000/api/auth/user', {
+        const response = await axios.get(API_URL+'/api/auth/user', {
           headers: { Authorization: `Bearer ${token}` },
         });
         setUser(response.data);

@@ -4,24 +4,25 @@ import { PanelGroup, Panel, PanelResizeHandle } from 'react-resizable-panels';
 import { FaPlus, FaSave, FaPlay, FaTimes } from 'react-icons/fa';
 import { w3cwebsocket as W3CWebSocket } from 'websocket';
 import TerminalComponent from './Terminal.jsx';
+import axios from 'axios';
 
-const Workspace = ({ containerId }) => {
+const Workspace = ({ containerId,API_URL}) => {
   const [files, setFiles] = useState([]);
   const [currentFile, setCurrentFile] = useState('');
   const [fileContent, setFileContent] = useState('');
   const [terminalOutput, setTerminalOutput] = useState('');
   const terminalRef = useRef(null);
-
+  const token = localStorage.getItem('token');
   // Fetch files in the root directory
   const fetchFiles = async () => {
     try {
-      const response = await axios.post('/api/docker/files/list', { containerId, dirPath: '/' });
-      setFiles(response.data.files.split('\n'));
+      const response = await axios.post(API_URL+'/api/docker/files/list', { containerId, dirPath: '/app'},{headers: { Authorization: `Bearer ${token}`}});
+      console.log(response.data.files);
+       setFiles(response.data.files.split('\n'));
     } catch (err) {
-      console.error(err);
+      console.error(err.message);
     }
   };
-
   // Read a file
   const readFile = async (filePath) => {
     try {
@@ -45,10 +46,11 @@ const Workspace = ({ containerId }) => {
 
   // Connect to the terminal WebSocket
   useEffect(() => {
-    const client = new W3CWebSocket(`ws://localhost:5000/api/docker/containers/${containerId}/terminal`);
+    const client = new W3CWebSocket(`ws://192.168.0.105:5000/api/docker/containers/${containerId}/terminal`);
 
     client.onopen = () => {
       console.log('WebSocket connected');
+      fetchFiles();
     };
 
     client.onmessage = (message) => {
@@ -56,8 +58,7 @@ const Workspace = ({ containerId }) => {
     };
 
     terminalRef.current = client;
-
-    return () => {
+    client.onclose = () => {
       client.close();
     };
   }, [containerId]);
@@ -88,7 +89,7 @@ const Workspace = ({ containerId }) => {
             <ul>
               {files.map((file, index) => (
                 <li key={index} onClick={() => readFile(file)} style={{ cursor: 'pointer' }}>
-                  {file}
+                  {file.replace(/[^\x20-\x7E]/g, '')}
                 </li>
               ))}
             </ul>
@@ -115,7 +116,7 @@ const Workspace = ({ containerId }) => {
             <Panel >
               <div style={{ padding: '10px', background: '#1e1e1e', color: '#fff', height: '100%' }}>
                 <h3>Terminal</h3>
-                <TerminalComponent/>
+                <TerminalComponent containerId={containerId}/>
               </div>
 
             </Panel>
