@@ -173,13 +173,11 @@ export const attachTerminal = (ws, req) => {
       
       // Send output from container to client
       stream.on('data', (chunk) => {
-        console.log(chunk.toString());
         ws.send(chunk.toString());
       });
       stream.on('error',(err)=>console.error(err));
       // Send input from client to container
       ws.on('message',  (message) => {
-        console.log("Received from client:", message);
          stream.write(message+'\r');
       });
 

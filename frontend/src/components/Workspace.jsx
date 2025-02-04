@@ -109,8 +109,9 @@ const Workspace = ({ containerId,API_URL}) => {
                 />
               </div>
             </Panel>
-            <hr />
-            <PanelResizeHandle />
+            <PanelResizeHandle >
+            <center>.</center>
+            </PanelResizeHandle>
 
             {/* Terminal */}
             <Panel >

@@ -54,7 +54,6 @@ export default function TerminalComponent({ containerId }) {
               ws.current.send(commandBuffer);
             }
             commandBuffer = "";
-            term.current.write(prompt);
           } else if (data === "\x7F") { // Handle backspace
             if (commandBuffer.length > 0) {
               commandBuffer = commandBuffer.slice(0, -1);
