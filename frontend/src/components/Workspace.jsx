@@ -2,33 +2,33 @@ import React, { useState, useEffect, useRef } from 'react';
 import Editor from '@monaco-editor/react';
 import { PanelGroup, Panel, PanelResizeHandle } from 'react-resizable-panels';
 import { FaPlus, FaSave, FaPlay, FaTimes } from 'react-icons/fa';
-import { w3cwebsocket as W3CWebSocket } from 'websocket';
+import { LuRefreshCcw } from 'react-icons/lu';
 import TerminalComponent from './Terminal.jsx';
 import axios from 'axios';
 
-const Workspace = ({ containerId,API_URL}) => {
+const Workspace = ({ containerId,setContainerId,API_URL }) => {
   const [files, setFiles] = useState([]);
   const [currentFile, setCurrentFile] = useState('');
   const [fileContent, setFileContent] = useState('');
-  const [terminalOutput, setTerminalOutput] = useState('');
-  const terminalRef = useRef(null);
   const token = localStorage.getItem('token');
   // Fetch files in the root directory
   const fetchFiles = async () => {
     try {
-      const response = await axios.post(API_URL+'/api/docker/files/list', { containerId, dirPath: '/app'},{headers: { Authorization: `Bearer ${token}`}});
-      console.log(response.data.files);
-       setFiles(response.data.files.split('\n'));
+      const response = await axios.post(API_URL + '/api/docker/files/list', { containerId, dirPath: '/app' }, { headers: { Authorization: `Bearer ${token}` } });
+      setFiles(response.data.files.split('\n'));
     } catch (err) {
       console.error(err.message);
     }
   };
   // Read a file
-  const readFile = async (filePath) => {
-    try {
-      const response = await axios.post('/api/docker/files/read', { containerId, filePath });
-      setFileContent(response.data.content);
-      setCurrentFile(filePath);
+  const readFile = async (file) => {
+    try { 
+      const newFile=file.replace(/[^\x20-\x7E]/g, '');
+      const response = await axios.post(API_URL + '/api/docker/files/read', { containerId, filePath: '/app/' + newFile}, { headers: { Authorization: `Bearer ${token}` } });
+      console.log(response.data.content);
+      const cleanedContent = response.data.content.replace(/[^\x20-\x7E\n\r]/g, '');
+      setCurrentFile(newFile);
+      setFileContent(cleanedContent.slice(1));
     } catch (err) {
       console.error(err);
     }
@@ -36,48 +36,43 @@ const Workspace = ({ containerId,API_URL}) => {
 
   // Save a file
   const saveFile = async () => {
+    if(!currentFile){
+      const newFile = prompt("Please enter a file name:");
+      setCurrentFile(newFile);
+      if(!newFile){
+        alert("File name cannot be empty");
+        return;
+      }
+    }
     try {
-      await axios.post('/api/docker/files/write', { containerId, filePath: currentFile, content: fileContent });
-      alert('File saved successfully');
+      const response = await axios.post(API_URL + '/api/docker/files/write', { containerId, filePath: '/app/'+currentFile, content: fileContent },{ headers: { Authorization: `Bearer ${token}` } });
+      fetchFiles();
     } catch (err) {
       console.error(err);
     }
   };
-
-  // Connect to the terminal WebSocket
-  useEffect(() => {
-    const client = new W3CWebSocket(`ws://192.168.0.105:5000/api/docker/containers/${containerId}/terminal`);
-
-    client.onopen = () => {
-      console.log('WebSocket connected');
-      fetchFiles();
-    };
-
-    client.onmessage = (message) => {
-      setTerminalOutput((prev) => prev + message.data);
-    };
-
-    terminalRef.current = client;
-    client.onclose = () => {
-      client.close();
-    };
-  }, [containerId]);
-
-  // Send terminal input
-  const sendTerminalInput = (input) => {
-    if (terminalRef.current) {
-      terminalRef.current.send(input);
+  //Stop container
+  const exit = async() =>{
+    try {
+      const response = await axios.post(API_URL + `/api/docker/containers/${containerId}/stop`,{},{ headers: { Authorization: `Bearer ${token}`}});
+      setContainerId('');
+    } catch (err) {
+      console.error(err);
     }
-  };
+  }
+  useEffect(() => {
+    fetchFiles();
+  }, []);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw' }}>
       {/* Header */}
       <div style={{ padding: '10px', background: '#1e1e1e', color: '#fff', display: 'flex', gap: '10px' }}>
-        <button onClick={() => alert('Add File')}><FaPlus /></button>
+        <button onClick={() => {saveFile();setCurrentFile('');setFileContent('')}}><FaPlus /></button>
         <button onClick={saveFile}><FaSave /></button>
         <button onClick={() => alert('Run')}><FaPlay /></button>
-        <button onClick={() => alert('Exit')}><FaTimes /></button>
+        <button onClick={exit}><FaTimes /></button>
+        <button onClick={fetchFiles}><LuRefreshCcw /></button>
       </div>
 
       {/* Main Content */}
@@ -88,7 +83,7 @@ const Workspace = ({ containerId,API_URL}) => {
             <h3>File Explorer</h3>
             <ul>
               {files.map((file, index) => (
-                <li key={index} onClick={() => readFile(file)} style={{ cursor: 'pointer' }}>
+                <li key={index} onClick={()=>readFile(file)} style={{ cursor: 'pointer', listStyle: 'none', fontSize: '1rem', borderBottom: '1px solid grey' }}>
                   {file.replace(/[^\x20-\x7E]/g, '')}
                 </li>
               ))}
@@ -110,14 +105,14 @@ const Workspace = ({ containerId,API_URL}) => {
               </div>
             </Panel>
             <PanelResizeHandle >
-            <center>.</center>
+              <center>.</center>
             </PanelResizeHandle>
 
             {/* Terminal */}
             <Panel >
               <div style={{ padding: '10px', background: '#1e1e1e', color: '#fff', height: '100%' }}>
                 <h3>Terminal</h3>
-                <TerminalComponent containerId={containerId}/>
+                <TerminalComponent containerId={containerId} />
               </div>
 
             </Panel>

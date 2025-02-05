@@ -27,9 +27,11 @@ export async function startContainer(req, res) {
 // Stop a container
 export async function stopContainer(req, res) {
   const { containerId } = req.params;
+  console.log(containerId);
   try {
     const container = docker.getContainer(containerId);
     await container.stop();
+    await container.remove();
     res.json({ message: `Container ${containerId} stopped successfully` });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -88,6 +90,7 @@ export const readFile = async (req, res) => {
     const stream = await exec.start();
     let output = '';
     stream.on('data', (chunk) => (output += chunk.toString()));
+
     stream.on('end', () => res.json({ content: output }));
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -97,7 +100,7 @@ export const readFile = async (req, res) => {
 // Write a file to the container
 export const writeFile = async (req, res) => {
   const { containerId, filePath, content } = req.body;
-
+  console.log(content);
   try {
     const container = docker.getContainer(containerId);
     const exec = await container.exec({
@@ -106,7 +109,7 @@ export const writeFile = async (req, res) => {
       AttachStderr: true,
     });
 
-    const stream = await exec.start();
+    const stream = await exec.start({ hijack: true, stdin: true });
     stream.on('end', () => res.json({ message: 'File saved successfully' }));
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -173,12 +176,38 @@ export const attachTerminal = (ws, req) => {
       
       // Send output from container to client
       stream.on('data', (chunk) => {
-        ws.send(chunk.toString());
+        buffer += chunk.toString();
+
+    // Example parsing logic to divide input, prompt, and output
+    let input = '';
+    let prompt = '';
+    let output = '';
+
+    const lines = buffer.split('\n');
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+
+      if (line.match(/(.*#|.*>)$/)) {
+        // Likely a prompt (ends with `>` or shell markers)
+        prompt = line;
+      } else if (line && !prompt) {
+        // Possible command input or intermediate output
+        input = line;
+      } else {
+        // Assume this is output from the process
+        output = line;
+      }
+    }
+
+    buffer = ''; // Clear buffer to prevent duplicate parsing
+
+    // Send as object
+    ws.send(JSON.stringify({ input, prompt, output }));
       });
       stream.on('error',(err)=>console.error(err));
       // Send input from client to container
       ws.on('message',  (message) => {
-         stream.write(message+'\r');
+         stream.write(message);
       });
 
       // Handle WebSocket close event

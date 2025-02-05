@@ -8,7 +8,9 @@ export default function TerminalComponent({ containerId }) {
   const term = useRef(null);
   const ws = useRef(null);
   let commandBuffer = "";
-  const prompt = "$ ";
+  let history = [];
+  let historyIndex = -1;
+
 
   useEffect(() => {
     const initializeTerminal = () => {
@@ -48,22 +50,38 @@ export default function TerminalComponent({ containerId }) {
         // Handle user input
         term.current.onData((data) => {
           if (data === "\r") {
+            // Handle Enter key
             term.current.write("\r\n");
             if (commandBuffer.trim()) {
               console.log("Sending command:", commandBuffer);
               ws.current.send(commandBuffer);
+              history.push(commandBuffer);
+              historyIndex = history.length; // Reset history index
+            }
+            else{
+              ws.current.send('\r');
             }
             commandBuffer = "";
-          } else if (data === "\x7F") { // Handle backspace
+          } else if (data === "\x7F") {
+            // Handle Backspace, ensuring only input is erased, not output
             if (commandBuffer.length > 0) {
               commandBuffer = commandBuffer.slice(0, -1);
               term.current.write("\b \b");
             }
+          } else if (data === "\x1b[A") {
+          } else if (data === "\x1b[B") {
+          } else if (data === "\x1b[D") {
+          } else if (data === "\x1b[C") {
           } else {
             commandBuffer += data;
             term.current.write(data);
           }
         });
+        
+        function redrawCommand() {
+          term.current.write("\r\x1b[K"); // Clear the current line
+          term.current.write(commandBuffer); // Rewrite the command buffer
+        }
       }
     };
 
