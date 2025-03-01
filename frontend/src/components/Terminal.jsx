@@ -1,6 +1,7 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Terminal } from "xterm";
 import "xterm/css/xterm.css";
+import { FitAddon } from 'xterm-addon-fit';
 import { w3cwebsocket as W3CWebSocket } from "websocket";
 
 export default function TerminalComponent({ containerId }) {
@@ -8,8 +9,7 @@ export default function TerminalComponent({ containerId }) {
   const term = useRef(null);
   const ws = useRef(null);
   let commandBuffer = "";
-  let history = [];
-  let historyIndex = -1;
+  const fitAddonRef = useRef(new FitAddon());
 
 
   useEffect(() => {
@@ -25,9 +25,9 @@ export default function TerminalComponent({ containerId }) {
 
         term.current.open(terminalRef.current);
         term.current.write(`\u001b[32mConnected to container ${containerId}\u001b[0m\r\n`);
-
+        fitAddonRef.current.fit();
         // WebSocket Connection
-        ws.current = new W3CWebSocket(`ws://192.168.0.105:5000/api/docker/containers/${containerId}/terminal`);
+        ws.current = new W3CWebSocket(`ws://localhost:5000/api/docker/containers/${containerId}/terminal`);
 
         ws.current.onopen = () => {
           console.log("WebSocket connected");
@@ -48,43 +48,51 @@ export default function TerminalComponent({ containerId }) {
         };
 
         // Handle user input
+        let cursorPosition = 0;
         term.current.onData((data) => {
-          if (data === "\r") {
-            // Handle Enter key
-            term.current.write("\r\n");
-            if (commandBuffer.trim()) {
-              console.log("Sending command:", commandBuffer);
+          switch (data) {
+            case '\r':  // Enter key
               ws.current.send(commandBuffer);
-              history.push(commandBuffer);
-              historyIndex = history.length; // Reset history index
-            }
-            else{
-              ws.current.send('\r');
-            }
-            commandBuffer = "";
-          } else if (data === "\x7F") {
-            // Handle Backspace, ensuring only input is erased, not output
-            if (commandBuffer.length > 0) {
-              commandBuffer = commandBuffer.slice(0, -1);
-              term.current.write("\b \b");
-            }
-          } else if (data === "\x1b[A") {
-          } else if (data === "\x1b[B") {
-          } else if (data === "\x1b[D") {
-          } else if (data === "\x1b[C") {
-          } else {
-            commandBuffer += data;
-            term.current.write(data);
+              term.current.write('\r\n');
+              cursorPosition = 0;
+              commandBuffer="";
+              break;
+        
+            case '\x1b[A':  // Up arrow
+            case '\x1b[B':  // Down arrow
+            case '\x1b[C':  // Right arrow
+            case '\x1b[D': break;// Left arrow
+            case '\x7f':   // Backspace (DEL)
+            case '\x08':  // Backspace (BS)
+              // Handle backspace (you can add backspace logic here)
+              if(cursorPosition>0){
+                term.current.write('\b \b');
+                cursorPosition-=1;
+                commandBuffer=commandBuffer.slice(0,-1);
+              }
+              break;
+        
+            case '\t':  // Tab key
+              // Handle tab completion
+              break;
+        
+            case '\x1b':  // Escape key
+              // Handle escape sequence
+              break;
+        
+            case '\x1b[2~':  // Insert key
+              // Handle insert key
+              break;
+        
+            default:
+              // Handle regular input
+              commandBuffer=commandBuffer+data;
+              term.current.write(data);
+              cursorPosition+=1;
           }
         });
-        
-        function redrawCommand() {
-          term.current.write("\r\x1b[K"); // Clear the current line
-          term.current.write(commandBuffer); // Rewrite the command buffer
-        }
-      }
-    };
-
+  }
+}
     const timeoutId = setTimeout(initializeTerminal, 100);
 
     return () => {

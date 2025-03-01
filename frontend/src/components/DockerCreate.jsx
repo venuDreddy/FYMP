@@ -7,6 +7,7 @@ function DockerCreate({setContainerId}) {
     const [containerName, setContainerName] = useState('');
     const [hostPort, setHostPort] = useState('');
     const [containerPort, setContainerPort] = useState('');
+    const [password,setPassword] = useState('');
   
     const fetchContainers = async () => {
       try {
@@ -50,7 +51,7 @@ function DockerCreate({setContainerId}) {
       setContainerId(response.data.container_id);
         alert(`Container ${containerName} created and started successfully`);
       } catch (err) {
-        console.error(err);
+        console.log(err);
       }
     };
   
@@ -84,22 +85,10 @@ function DockerCreate({setContainerId}) {
           onChange={(e) => setImageName(e.target.value)}
         />
         <input
-          type="text"
-          placeholder="Container name"
-          value={containerName}
-          onChange={(e) => setContainerName(e.target.value)}
-        />
-        <input
-          type="text"
-          placeholder="Host port"
-          value={hostPort}
-          onChange={(e) => setHostPort(e.target.value)}
-        />
-        <input
-          type="text"
-          placeholder="Container port"
-          value={containerPort}
-          onChange={(e) => setContainerPort(e.target.value)}
+          type="password"
+          placeholder="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
         />
         <button onClick={createContainer}>Create Container</button>
       </div>

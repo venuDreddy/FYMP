@@ -1,5 +1,4 @@
 import Docker from 'dockerode';
-
 const docker = new Docker();
 
 // List all containers
@@ -79,20 +78,46 @@ export async function createContainer(req, res){
 export const readFile = async (req, res) => {
   const { containerId, filePath } = req.body;
 
+  if (!containerId || !filePath) {
+    return res.status(400).json({ error: 'containerId and filePath are required' });
+  }
+
   try {
     const container = docker.getContainer(containerId);
+
+    // Create an exec instance to run the `cat` command
     const exec = await container.exec({
       Cmd: ['cat', filePath],
       AttachStdout: true,
       AttachStderr: true,
     });
 
-    const stream = await exec.start();
-    let output = '';
-    stream.on('data', (chunk) => (output += chunk.toString()));
+    // Start the exec instance
+    const stream = await exec.start({ hijack: true, stdin: true });
 
-    stream.on('end', () => res.json({ content: output }));
+    let fileContent = '';
+
+    // Demux the stream (stdout and stderr)
+    docker.modem.demuxStream(stream, process.stdout, process.stderr);
+
+    // Collect data from stdout
+    stream.on('data', (chunk) => {
+      fileContent += chunk.toString(); // Append chunks to fileContent
+    });
+
+    // Handle stream end
+    stream.on('end', () => {
+
+      res.json({ content: fileContent.toString('base64') }); // Send the file content as response
+    });
+
+    // Handle stream errors
+    stream.on('error', (err) => {
+      console.error('Stream error:', err);
+      res.status(500).json({ error: 'Failed to read file from container' });
+    });
   } catch (err) {
+    console.error('Error:', err);
     res.status(500).json({ error: err.message });
   }
 };
@@ -100,18 +125,20 @@ export const readFile = async (req, res) => {
 // Write a file to the container
 export const writeFile = async (req, res) => {
   const { containerId, filePath, content } = req.body;
-  console.log(content);
+  console.log(content+" "+filePath);
   try {
     const container = docker.getContainer(containerId);
     const exec = await container.exec({
-      Cmd: ['sh', '-c', `echo "${content}" > ${filePath}`],
+      Cmd: ['sh', '-c', `echo '${content}' > ${filePath}`],
       AttachStdout: true,
       AttachStderr: true,
     });
 
     const stream = await exec.start({ hijack: true, stdin: true });
+    stream.on('data',()=>{});
     stream.on('end', () => res.json({ message: 'File saved successfully' }));
   } catch (err) {
+    console.log(err);
     res.status(500).json({ error: err.message });
   }
 };
@@ -150,7 +177,7 @@ export const attachTerminal = (ws, req) => {
 
   // Get the Docker container instance
   const container = docker.getContainer(containerId);
-
+    console.log(containerId);
   // Check if container exists
   container.inspect(async (err, data) => {
     if (err || !data) {
@@ -168,46 +195,22 @@ export const attachTerminal = (ws, req) => {
       WorkingDir:'/app',
     });
 
-     exec.start({ detach:false,hijack:true,stdin: true, tty: true },(err, stream) => {
+     exec.start({ hijack:true,stdin: true, tty: true },(err, stream) => {
       if (err) {
         ws.send(JSON.stringify({ error: err.message }));
         return;
       }
-      
       // Send output from container to client
       stream.on('data', (chunk) => {
-        buffer += chunk.toString();
-
-    // Example parsing logic to divide input, prompt, and output
-    let input = '';
-    let prompt = '';
-    let output = '';
-
-    const lines = buffer.split('\n');
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i].trim();
-
-      if (line.match(/(.*#|.*>)$/)) {
-        // Likely a prompt (ends with `>` or shell markers)
-        prompt = line;
-      } else if (line && !prompt) {
-        // Possible command input or intermediate output
-        input = line;
-      } else {
-        // Assume this is output from the process
-        output = line;
-      }
-    }
-
-    buffer = ''; // Clear buffer to prevent duplicate parsing
-
-    // Send as object
-    ws.send(JSON.stringify({ input, prompt, output }));
+       const output=chunk.toString();
+        console.log(output);
+        ws.send(output);
       });
       stream.on('error',(err)=>console.error(err));
       // Send input from client to container
       ws.on('message',  (message) => {
-         stream.write(message);
+        console.log(message);
+        stream.write(message+'\r');
       });
 
       // Handle WebSocket close event

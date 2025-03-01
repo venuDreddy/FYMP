@@ -24,11 +24,16 @@ const Workspace = ({ containerId,setContainerId,API_URL }) => {
   const readFile = async (file) => {
     try { 
       const newFile=file.replace(/[^\x20-\x7E]/g, '');
-      const response = await axios.post(API_URL + '/api/docker/files/read', { containerId, filePath: '/app/' + newFile}, { headers: { Authorization: `Bearer ${token}` } });
-      console.log(response.data.content);
-      const cleanedContent = response.data.content.replace(/[^\x20-\x7E\n\r]/g, '');
+      const response = await axios.post(API_URL + '/api/docker/files/read', { containerId, filePath: '/app/' + newFile}, { headers: { Authorization: `Bearer ${token}` },
+      responseType:'json'});
+      console.log(response.data);
+      let newFileContent = response.data.content;
+      while(newFileContent.length>0 && newFileContent.charCodeAt(0)<=31){
+        newFileContent = newFileContent.slice(1);
+      }
+      console.log(newFileContent);
       setCurrentFile(newFile);
-      setFileContent(cleanedContent.slice(1));
+      setFileContent(newFileContent);
     } catch (err) {
       console.error(err);
     }
@@ -36,25 +41,29 @@ const Workspace = ({ containerId,setContainerId,API_URL }) => {
 
   // Save a file
   const saveFile = async () => {
+    let filetoSave = currentFile;
     if(!currentFile){
       const newFile = prompt("Please enter a file name:");
-      setCurrentFile(newFile);
+      console.log(currentFile);
       if(!newFile){
         alert("File name cannot be empty");
         return;
       }
+      filetoSave = newFile;
+      setCurrentFile(newFile);
     }
     try {
-      const response = await axios.post(API_URL + '/api/docker/files/write', { containerId, filePath: '/app/'+currentFile, content: fileContent },{ headers: { Authorization: `Bearer ${token}` } });
-      fetchFiles();
+      const response = await axios.post(API_URL + '/api/docker/files/write', { containerId, filePath: '/app/'+filetoSave, content: fileContent },{ headers: { Authorization: `Bearer ${token}` } });
+      await fetchFiles();
+      console.log(response.data.message);
     } catch (err) {
       console.error(err);
     }
   };
   //Stop container
-  const exit = async() =>{
+  const exit = () =>{
     try {
-      const response = await axios.post(API_URL + `/api/docker/containers/${containerId}/stop`,{},{ headers: { Authorization: `Bearer ${token}`}});
+      const response = axios.post(API_URL + `/api/docker/containers/${containerId}/stop`,{},{ headers: { Authorization: `Bearer ${token}`}});
       setContainerId('');
     } catch (err) {
       console.error(err);
@@ -70,7 +79,6 @@ const Workspace = ({ containerId,setContainerId,API_URL }) => {
       <div style={{ padding: '10px', background: '#1e1e1e', color: '#fff', display: 'flex', gap: '10px' }}>
         <button onClick={() => {saveFile();setCurrentFile('');setFileContent('')}}><FaPlus /></button>
         <button onClick={saveFile}><FaSave /></button>
-        <button onClick={() => alert('Run')}><FaPlay /></button>
         <button onClick={exit}><FaTimes /></button>
         <button onClick={fetchFiles}><LuRefreshCcw /></button>
       </div>

@@ -8,7 +8,7 @@ import ResourceConsumer from './pages/ResourceConsumer';
 import ProtectedRoute from './components/ProtectedRoute';
 
 const App = () => {
-  const API_URL= "http://192.168.0.105:5000";
+  const API_URL= "http://localhost:5000";
   return (
     <Router>
       <Routes>
